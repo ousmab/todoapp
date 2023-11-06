@@ -201,14 +201,64 @@ class Todo(db.Model):
             print(e)
         return todos_list
 
-    
+    @staticmethod
+    def update_status_unarchived(todo_id):
+        todo  = Todo.query.get(int(todo_id) )
+        try:
+            if todo.archived == True:
+                todo.archived = False
+                db.session.commit()
+            return True
+        except Exception as e:
+            print(e)
+        return False
+
+    @staticmethod
+    def update_status_archived(todo_id):
+        todo = Todo.query.get(int(todo_id) )
+        
+        try:
+            if todo.done == False:
+                return False
+            if todo.archived == False:
+                todo.archived = True
+                db.session.commit()
+            return True
+        except Exception as e:
+            print(e)
+        return False
+
+    @staticmethod
+    def update_status_do(todo_id):
+        todo = Todo.query.get( int(todo_id))
+        try:
+            if todo.done == False:
+                todo.done = True
+                db.session.commit()
+            return True 
+        except Exception as e:
+            print(e)
+        return False 
+
+    @staticmethod
+    def update_status_undo(todo_id):
+        todo = Todo.query.get(int(todo_id))
+        try:
+            if todo.done == True:
+                todo.done = False
+                db.session.commit()
+            return True
+        except Exception as e:
+            print(e)
+        return False
+
 
 with app.app_context():
     db.create_all()
 
-    result = Todo.get_all(1)
+    result = Todo.update_status_undo(3)
     
-    print("todo all  ... ", result)
+    print("todo arch  ... ", result)
 
    
 
