@@ -1,5 +1,7 @@
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy 
+from validator import validate
+from helpers import hash_password
 import bcrypt
 
 
@@ -102,7 +104,7 @@ class User(db.Model):
         user = User.get_by_email(user_email) # user / None
         if user:
             try:
-                user.password = bcrypt.hashpw(new_password.encode('utf-8') , bcrypt.gentsalt())
+                user.password = hash_password(new_password)
                 return True
             except Exception as e:
                 print(e)
@@ -252,24 +254,82 @@ class Todo(db.Model):
             print(e)
         return False
 
+    @staticmethod
+    def todo_search(keyword, user_id):
+        todos = []
+        try:
+            todos_selected = Todo.query.filter(Todo.content.like("%"+keyword+"%") & Todo.user_id.is_(int(user_id))  ).all()
+            if todos_selected:
+                for todo in todos_selected:
+                    todo_dict={
+                        "id" : todo.id,
+                        "content" : todo.content,
+                        "done" : todo.done,
+                        "archived" : todo.archived,
+                        "user_owner" : todo.user_id,
+                        "created_at" : todo.created_at,
+                        "updated_at" : todo.updated_at
+                    }
+                    todos.append(todo_dict)
+                return todos
+        except Exception as e:
+            print(e)
+        return todos
 
 with app.app_context():
     db.create_all()
 
-    result = Todo.update_status_undo(3)
-    
-    print("todo arch  ... ", result)
-
-   
 
 
-@app.route('/register')
+####################### END POINT ####################
+#######################################################
+
+
+@app.route('/register', methods=['POST'])
 def register():
-    pass
+    
     # recuperation des données
-    #validation des données
-    # - verification de l'emal , username, password , si le new user nexiste pas
-    #sauvegarde en BD
+    username = request.json['username'].strip()
+    email = request.json['email'].strip()
+    password = request.json['password'].strip()
+    errors={}
+
+    # validation
+    username_check =  validate({"username" : username} , {"username" : "required"}  )
+    email_check =  validate({"mail" : email} , {"mail" : "required|mail"}  )
+    password_check =  validate({"pass" : password} , {"pass" : "required|min:8"}  )
+
+    if username_check==False:
+        errors['username'] = "Veuillez renseigner un nom d'utilisateur !"
+    else:
+        user = User.get_by_username(username)
+        if user:
+            errors['username'] = "Cet utilisateur existe déjà !"
+
+    if email_check==False:
+        errors['email'] = "Veuillez renseigner un email valide !"
+    else:
+        user = User.get_by_email(email)
+        if user:
+            errors['email'] = "Cet email est déjà enregistré !"
+
+    if password_check==False:
+        errors['password'] = "Le mot de passe doit faire au moins 8 caractères"
+    
+    if bool(errors):
+        return jsonify({"status":"failed", "message": "echec de l'inscription", "errors" : errors })
+    else:
+        #hasher le mot de passe
+        password_hashed = hash_password(password)
+        user = User(email=email, password=password_hashed, username=username)
+        save_result = User.add(user)
+
+        if save_result:
+            return jsonify({"status":"success", "message": "l'utilisateur {} est inscrit avec succès".format(username)})
+    
+    return jsonify({"status":"failed", "message":" echec de l'inscription erreur non connu"}), 400
+
+ 
 
 
 if __name__ == "__main__":
