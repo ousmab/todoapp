@@ -1,23 +1,35 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy 
 from validator import validate
-from helpers import hash_password
+from helpers import hash_password, check_password
+from flask_login import LoginManager, UserMixin, login_user
 import bcrypt
 
 
 app = Flask(__name__)
-
+app.config['SECRET_KEY'] = "192b9bdd22ab9ed4d12e236c78afcb9a393ec15f71bbf5dc987d54727823bcbf"
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///db/todoAppManager.db"
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.get(user_id)
+
 db = SQLAlchemy(app)
 
-class User(db.Model):
+class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), nullable=False, unique=True)
     email = db.Column(db.String(100), nullable=False, unique=True)
     password = db.Column(db.String(200), nullable=False)
     profil_image = db.Column(db.String(120), nullable=True)
     todos = db.relationship("Todo", backref=db.backref('user', lazy=True))
+    #is_authenticated
 
+    def get_id(self):
+        return str(self.id)
 
     def __repr__(self):
         return '<User %r>' % self.username
@@ -283,6 +295,44 @@ with app.app_context():
 
 ####################### END POINT ####################
 #######################################################
+
+@app.route('/login', methods=['POST'])
+def login():
+    # recuperation des données
+   
+    username_or_email = request.json['username'].strip()
+    password = request.json['password'].strip()
+    remember = request.json['remember']
+    #valider les données
+    username_or_email_check = validate({"username": username_or_email}, {"username": "required"})
+    password_check = validate({"pass": password}, {"pass": "required"})
+
+
+    if not username_or_email_check or not password_check:
+        return jsonify({"status":"failed", "message":"Veuillez renseigner un couple username ou email / et mot de passe valide"})
+    #verifier la presence l'utilisateur ne BD a partir du username
+
+    user = User.get_by_username_or_email(username_or_email)
+    user_password_check = False
+    if user:
+        user_password_check = check_password(password, user.password)
+    else:
+        return jsonify({"status":"failed", "message":"Le couple username ou email / mot de passe est incorrect"})
+    
+    if user and user_password_check:
+        #on logge l'utilisateur et flask-login au travers de la methode login_user creer les cookie de session et le cookie 
+        #remember me
+        login_user(user, remember= remember | False) 
+        authUser = { "user":user.id, "username":user.username, "connected":True }
+        return jsonify({"status":"success", "message":"Connexion reussie", "data": authUser})
+    else:
+        return jsonify({"status":"failed", "message":"Le couple username ou email / mot de passe est incorrect"})
+
+    #si l'utilisateur existe et si le mot de passe correspond au mot de passe hashé (bcryt.checkpw(pass, pwhasse) )
+    #si l'utilisateur existe et le mot de passe est correct : on va le connecter ( en utilisant flask-login)
+    #retourner les informations du user connecté
+
+
 
 
 @app.route('/register', methods=['POST'])
