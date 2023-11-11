@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from flask_sqlalchemy import SQLAlchemy 
 from validator import validate
 from helpers import hash_password, check_password
@@ -9,6 +9,8 @@ import bcrypt
 app = Flask(__name__)
 app.config['SECRET_KEY'] = "192b9bdd22ab9ed4d12e236c78afcb9a393ec15f71bbf5dc987d54727823bcbf"
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///db/todoAppManager.db"
+
+
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -296,6 +298,34 @@ with app.app_context():
 ####################### END POINT ####################
 #######################################################
 
+
+@app.route("/profil/<user_id>", methods=['GET'])
+def get_single_user(user_id):
+    user = User.get(user_id)
+    if user:
+        todos = []
+        if user.todos:
+            for todo in user.todos:
+                todo_dict = {
+                    "id": todo.id,
+                    "content" : todo.content,
+                    "done" : todo.done,
+                    "archived" : todo.archived,
+                    "updated_at": todo.updated_at,
+                    "created_at": todo.created_at
+                }
+                todos.append(todo_dict)
+        user_data = {
+            "id": user.id,
+            "email": user.email,
+            "username":user.username,
+            "profil_image":user.profil_image,
+            "todos":todos
+        }
+        return jsonify({"status":"success", "message":"Utilisateur recupéré avec succès", "data":user_data })
+    return jsonify({"status":"failed", "message":"Erreur lors de la récupération de l'utilisateur {}".format(user_id)})
+
+
 @app.route("/authenticate", methods=["GET"])
 def authenticate():
     authUser = { "user":None, "username":None, "connected":False }
@@ -308,7 +338,9 @@ def authenticate():
 @app.route("/logout", methods=['GET'])
 def logout():
     logout_user() #detruire le cookie de session
-    return jsonify({"status":"success", "message": "Deconnexion reussie"})
+    response = make_response(jsonify({"status":"success", "message": "Deconnexion reussie"}))
+    #entetes de reponses
+    return response
 
 @app.route('/login', methods=['POST'])
 def login():
