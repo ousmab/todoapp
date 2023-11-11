@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy 
 from validator import validate
 from helpers import hash_password, check_password
-from flask_login import LoginManager, UserMixin, login_user
+from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user
 import bcrypt
 
 
@@ -295,6 +295,20 @@ with app.app_context():
 
 ####################### END POINT ####################
 #######################################################
+
+@app.route("/authenticate", methods=["GET"])
+def authenticate():
+    authUser = { "user":None, "username":None, "connected":False }
+    if current_user.is_authenticated:
+        return jsonify({"user":current_user.id, "username":current_user.username,"connected":True, "profil_image": current_user.profil_image})
+    else:
+        return jsonify(authUser)
+
+
+@app.route("/logout", methods=['GET'])
+def logout():
+    logout_user() #detruire le cookie de session
+    return jsonify({"status":"success", "message": "Deconnexion reussie"})
 
 @app.route('/login', methods=['POST'])
 def login():
