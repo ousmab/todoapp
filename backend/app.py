@@ -30,11 +30,28 @@ class User(UserMixin, db.Model):
     todos = db.relationship("Todo", backref=db.backref('user', lazy=True))
     #is_authenticated
 
+
+    
     def get_id(self):
         return str(self.id)
 
     def __repr__(self):
         return '<User %r>' % self.username
+
+
+
+    @staticmethod
+    def update_user_by_id(user_id,username, email):
+        user = User.query.get(int(user_id))
+        
+        try:
+            user.username = username
+            user.email = email
+            db.session.commit()
+            return True
+        except Exception as e:
+            print(e)
+        return False
 
     @staticmethod
     def add(user):
@@ -297,6 +314,71 @@ with app.app_context():
 
 ####################### END POINT ####################
 #######################################################
+@app.route("/profil/<user_id>", methods=['PUT'])
+def update_user(user_id):
+    errors={}
+
+    user = User.get(user_id)
+    if not user:
+        return jsonify({"status":"failed", "message":"Utilisateur non connu"})
+    #on ne peut modifier que son profil (current_user.id == user_id)
+    if (int(current_user.id) != int(user_id) ):
+        return jsonify({"status":"failed", "message":"Vous ne pouvez pas modifier ce profil"})
+    
+    #recuperation des données 
+    new_username = request.json['username'].strip()
+    new_email = request.json['email'].strip()
+    #validation des données
+    new_username_check = validate({"username": new_username}, {"username":"required"})
+    new_email_check = validate({"email": new_email}, {"email":"required|mail"})
+
+    if not new_username_check:
+        errors['username'] = "Veuillez renseigner un nom d'utilisateur valide"
+    
+    if not new_email_check:
+        errors['email'] = "L'email renseigné n'est pas valide"
+
+    if bool(errors):
+        return jsonify({"status":"failed", "message":"Echec de la modification de l'utilisateur", "errors" : errors})
+    #vérifie que le new email n'existe pas
+   
+    #vérfier que le new username n'existe pas en BD
+    username_exist = None
+    email_exist = None
+
+    if new_username != user.username:
+        username_exist = User.get_by_username(new_username)
+
+    if new_email != user.email:
+        email_exist = User.get_by_email(new_email)
+    
+    if username_exist or email_exist:
+        if username_exist:
+            errrors['username'] = "Le nom d'utilisateur choisi existe déjà"
+        
+        if email_exist:
+            errors['email'] = "Cet adresse email existe déjà"
+        
+        return jsonify({"status":"failed", "message":"Echec de la modification de l'utilisateur", "errrors": errors})
+
+    #effectuer la modifcation en BD
+    if user.username == new_username:
+        errors['username'] = "Il semble que le nom d'utilisateur est le même"
+    
+    if user.email == new_email:
+        errors['email'] = "Il semble que l'email envoyé est le même veuillez en choisir un autre"
+    
+    if bool(errors):
+        return jsonify({"status":"failed", "message":"Echec de la modification Choisir des données qui n'existent pas", "errors" : errors})
+
+   
+    update_result = User.update_user_by_id(user_id,new_username,new_email)
+    if update_result:
+        return jsonify({"status":"success", "message":"Profil utilisateur modifier avec succès"})
+
+    return jsonify({"status":"failed", "message":"Erreur survenue lors de la modification de l'utilisateur"})
+
+    
 
 
 @app.route("/profil/<user_id>", methods=['GET'])
