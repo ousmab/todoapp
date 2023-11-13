@@ -1,7 +1,7 @@
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, request, jsonify, make_response, session
 from flask_sqlalchemy import SQLAlchemy 
 from validator import validate
-from helpers import hash_password, check_password
+from helpers import hash_password, check_password, generate_token
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
 import bcrypt
 
@@ -319,6 +319,45 @@ def not_connected():
 
 ####################### END POINT ####################
 #######################################################
+@app.route("/profil/sendmail", methods=['POST'])
+def send_mail():
+    errors={}
+    #recuperer le mail
+    #verifier si le mail est valide
+    #verifier si ce mail renvoi a un compte existant en DB
+    #Vérifier si le user est connecté et si cest le cas alors on vérifie si cest lui qui envoi le mail
+    #générer le token 5 caracteres
+    #memoriser le token en session
+    #envoyer le mail (on verra cette logique plutard)
+    #retourner une response success
+
+    email = request.json['email'].strip()
+
+    email_check = validate({"email": email}, {"email":"required|mail"})
+    if email_check==False:
+        errors['email'] = "Veuillez renseigner un email valide !"
+        return jsonify({"status":"failed", "message":"Email non valide", "errors": errors})
+    
+    user = User.get_by_email(email)
+    if not user:
+        return jsonify({"status":"failed", "message":"Ce compte n'existe pas veuillez vous inscrire !"})
+    
+    if current_user.is_authenticated:
+        if current_user.id != user.id:
+            return jsonify({"status":"failed", "message":"Vous ne pouvez pas envoyez de mail a ce compte"})
+        
+    token = generate_token() #a creer
+    session['confirmation_token'] = token
+    print(session)
+
+    ## IMPLEMENTER LA LOGIQUE D'ENVOI DU MAIL
+    #try
+    #except
+    ##########################################
+    return jsonify({"status":"success", "message":"Consulter votre mail pour avoir le jeton de confirmation"})
+
+
+
 @app.route("/profil/<user_id>", methods=['PUT'])
 @login_required
 def update_user(user_id):
