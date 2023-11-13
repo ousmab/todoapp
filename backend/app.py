@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, make_response
 from flask_sqlalchemy import SQLAlchemy 
 from validator import validate
 from helpers import hash_password, check_password
-from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user
+from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
 import bcrypt
 
 
@@ -311,10 +311,16 @@ with app.app_context():
     db.create_all()
 
 
+@login_manager.unauthorized_handler
+def not_connected():
+    authUser = { "user":None, "username":None, "connected":False }
+    return jsonify(authUser)
+   
 
 ####################### END POINT ####################
 #######################################################
 @app.route("/profil/<user_id>", methods=['PUT'])
+@login_required
 def update_user(user_id):
     errors={}
 
@@ -382,8 +388,14 @@ def update_user(user_id):
 
 
 @app.route("/profil/<user_id>", methods=['GET'])
+@login_required
 def get_single_user(user_id):
+
+
     user = User.get(user_id)
+
+    if int(current_user.id != int(user_id)):
+        return jsonify({"status":"failed", "message":"Vous ne pouvez pas avoir accès à cet utilisateur"})
     if user:
         todos = []
         if user.todos:
