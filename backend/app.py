@@ -319,6 +319,80 @@ def not_connected():
 
 ####################### END POINT ####################
 #######################################################
+@app.route("/profil/password-reset", methods=['PUT'])
+def update_user_password():
+    #recuperer les données
+        #token , email , new_password
+    #valider les données
+        #le token doit etre de 5 caracteres , doit etre celui qui est en session
+        #verifier si le password est de 8 caracteres
+        #verifier que l'ancien password ne correspond pas au new_password
+        #email est valide
+    #si le user est connecté on s'assure que cest bien son compte qu'il modifie
+    #verifier s'il ya pas d'erreurs dans le dic errors
+    #modifie le password
+
+    
+
+    errors = {}
+
+    
+    token = request.json['token'].strip()
+    new_password = request.json['new_password'].strip()
+    email = request.json['email'].strip()
+
+    user = None
+    email_check = validate({"email": email}, {"email":"required|mail"})
+    
+    if not email_check:
+        errors['email'] = "Votre mail n'est pas valide"
+    else:
+        user = User.get_by_email(email)
+    
+    if not user:
+        return jsonify({"status":"failed", "message":"Echec de modification du mot de passe, Ce compte n'existe pas"})
+
+    if current_user.is_authenticated:
+        if current_user.id != user.id:
+            return jsonify({"status":"failed", "message":"Vous ne pouvez pas modifier ce profil"})
+
+
+    new_password_check = validate({"pass": new_password}, {"pass":"required|min:8"})
+    token_check = validate({"token" : token}, {"token": "required|min:5"})
+    
+
+    if not new_password_check:
+        errors['new_password'] = "le mot de passe doit faire 8 caractères"
+
+    if not token_check:
+        errors['token'] = "le format du jeton n'est pas valide"
+    else:
+        token_in_session = ""
+        if "confirmation_token" in session:
+            token_in_session = session['confirmation_token']
+
+        if token_in_session != token:
+            errors['token'] = "Mauvais jeton de confirmation veuillez consulter votre boite mail {}".format(email)
+    
+    if bool(errors):
+        return jsonify({"status":"failed", "message":"Echec de modification du mot de passe", "errors" : errors})
+
+   
+    
+    password_is_same = check_password(new_password, user.password)
+
+    if not password_is_same:
+        errors['new_password'] = "Il semble que le nouveau mot de passe est le même que l'ancien"
+    
+    if bool(errors):
+        return jsonify({"status":"failed", "message":"Echec de modification du mot de passe", "errors": errors})
+
+    update_password_result = User.update_password(email, new_password)
+
+    if update_password_result:
+        return jsonify({"status":"success", "message":"Mot de passe modifié avec succès"})
+    return jsonify({"status":"failed", "message":"Echec survenue lors de la modification du mot de passe"})
+
 @app.route("/profil/sendmail", methods=['POST'])
 def send_mail():
     errors={}
