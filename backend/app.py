@@ -161,6 +161,25 @@ class Todo(db.Model):
         return "<Todo {}>".format(self.content)
 
     @staticmethod
+    def get(todo_id):
+        todo = None
+        try:
+            todo = Todo.query.get(int(todo_id))
+            return {
+                    "id": todo.id,
+                    "content": todo.content,
+                    "user_owner" : todo.user_id,
+                    "done" : todo.done,
+                    "archived" : todo.archived,
+                    "created_at" : todo.created_at,
+                    "updated_at" : todo.updated_at
+                }
+        except Exception as e:
+            print(e)
+        return todo
+
+
+    @staticmethod
     def add(todo):
         try:
             db.session.add(todo)
@@ -194,7 +213,6 @@ class Todo(db.Model):
     def delete_one(todo_id):
         try:
             todo = Todo.query.get( int(todo_id) )
-
             if todo.archived:
                 return False
             db.session.delete(todo)
@@ -328,6 +346,43 @@ def handling_error(e):
 
 ####################### END POINT ####################
 #######################################################
+@app.route("/todos/<todo_id>", methods=['DELETE'])
+def delete_todo(todo_id):
+    result = Todo.delete_one(todo_id)
+    if result:
+        return jsonify({"status": "success", "message":"Tâche suprimée avec succès"})
+    msg = "Echec de la suppression de la tâche {}; vérifiez qu'il n'est pas archivé".format(todo_id)
+    return jsonify({"stauts":"failed", "message":msg})
+
+@app.route("/todos/<todo_id>", methods=['PATCH'])
+def update_todo(todo_id):
+    errors = {}
+    content = request.json['content'].strip()
+    content_check = validate({'content': content}, {"content": "required|min:5"})
+    if not content_check:
+        errors['content']  = "Votre tâche doit faire au moins 5 caractères"
+        return jsonify({'status':'failed', "message":"Echec de la mise à jour", "errors": errors})
+    
+    todo = Todo.get(todo_id)
+    user_id = None
+    if todo:
+        user_id = todo['id']
+    
+    if current_user.id != user_id:
+        return jsonify({"status": "failed", "message":"Vous ne pouvez pas modifier cette tâche"})
+    #modification
+    result = Todo.update_todo_content(todo_id, content)
+    if result:
+        return jsonify({"status":"success", "message":"Tâche modifiée avec succès"})
+    return jsonify({"status":"failed", "message":"Echec survenue lors de la modification de la tâche"})
+
+
+@app.route("/todos/<todo_id>", methods=['GET'])
+@login_required
+def get_one_todo(todo_id):
+    todo = Todo.get_one(todo_id, current_user.id)
+    return jsonify({"status":"success", "data": todo})
+
 @app.route("/todos/search")
 @login_required
 def seach_todo():
@@ -349,10 +404,10 @@ def get_all_todos():
 def add_todo():
     errors = {}
     content = request.json['content'].strip()
-    content_check = validate({"content": content}, {"content":"required|min:3"})
+    content_check = validate({"content": content}, {"content":"required|min:5"})
 
     if not content_check:
-        errors['content'] = "Votre tâche doit faire au moins 3 caractères"
+        errors['content'] = "Votre tâche doit faire au moins 5 caractères"
         return jsonify({"status":"failed", "message":"Echec d'ajout", "errors": errors})
 
     #creer un todo
