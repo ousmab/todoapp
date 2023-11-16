@@ -1,15 +1,19 @@
 from flask import Flask, request, jsonify, make_response, session
 from flask_sqlalchemy import SQLAlchemy 
 from validator import validate
-from helpers import hash_password, check_password, generate_token
+from helpers import hash_password, check_password, generate_token, check_allowed_extensions
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
+from werkzeug.utils import secure_filename
 import bcrypt
-
+import os
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = "192b9bdd22ab9ed4d12e236c78afcb9a393ec15f71bbf5dc987d54727823bcbf"
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///db/todoAppManager.db"
+app.config['UPDLOAD_FOLDER'] = "/static/profil/"
+app.config['MAX_CONTENT_LENGTH'] = 1024*1024*3
 
+ALLOWED_EXTENSIONS = ["jpg", "png", "jpeg","bmp","svg"]
 
 
 login_manager = LoginManager()
@@ -112,7 +116,6 @@ class User(UserMixin, db.Model):
             return True
         except Exception as e:
             print(e)
-            return False
         return False
     
     @staticmethod
@@ -132,10 +135,11 @@ class User(UserMixin, db.Model):
 
     @staticmethod
     def update_password(user_email, new_password):
-        user = User.get_by_email(user_email) # user / None
+        user = User.query.filter_by(email=user_email).first() # user / None
         if user:
             try:
                 user.password = hash_password(new_password)
+                db.session.commit()
                 return True
             except Exception as e:
                 print(e)
@@ -315,10 +319,45 @@ with app.app_context():
 def not_connected():
     authUser = { "user":None, "username":None, "connected":False }
     return jsonify(authUser)
-   
+
+@app.errorhandler(413)
+def handling_error(e):
+    errors = {"file_size": "le fichier est trop volumineux"}
+    return jsonify({"status":"faild","message":"Erreur survenue lors de l'upload du fichier", "errors": errors}), 413
+
 
 ####################### END POINT ####################
 #######################################################
+
+@app.route("/profil/upload", methods=['POST'])
+@login_required
+def upload_img_profil():
+    errors={}
+    #recuperer les fichiers et particuliermeent le fichier user_img
+    user_image = request.files['user_img']
+    #securiser le fichier
+
+    
+   
+    #verifier l'extention 
+    result_extension_check = check_allowed_extensions(user_image.filename, ALLOWED_EXTENSIONS)['result']
+    file_extension = check_allowed_extensions(user_image.filename, ALLOWED_EXTENSIONS)['extension']
+    
+    if not result_extension_check:
+        errors['file_extension'] = "Le type de fichier n'est pas autorisé"
+        return jsonify({"stauts":"failed", "message":"Extension non autorisée", "errors": errors})
+
+    #creer un chemin de sauvegarde sur le serveur
+    # C:/backend/static/profil/abou.jpg
+    image_to_save  = secure_filename(current_user.username)+"."+file_extension
+    #sauvegarder en BD et si cela reussi on sauvegarde sur le serveur
+    save_result = User.update_profil_image(current_user.id,  image_to_save)
+    if save_result:
+        path = os.getcwd()+app.config['UPDLOAD_FOLDER']+image_to_save
+        user_image.save(path)
+        return jsonify({"status":"success", "message":"Image du profil modifié avec succès"})
+    return jsonify({"status":"failed", "message": "Echec de la modification de l'image du profil"})
+
 @app.route("/profil/password-reset", methods=['PUT'])
 def update_user_password():
     #recuperer les données
@@ -381,14 +420,12 @@ def update_user_password():
     
     password_is_same = check_password(new_password, user.password)
 
-    if not password_is_same:
+    if password_is_same:
         errors['new_password'] = "Il semble que le nouveau mot de passe est le même que l'ancien"
-    
-    if bool(errors):
         return jsonify({"status":"failed", "message":"Echec de modification du mot de passe", "errors": errors})
 
     update_password_result = User.update_password(email, new_password)
-
+    print(update_password_result)
     if update_password_result:
         return jsonify({"status":"success", "message":"Mot de passe modifié avec succès"})
     return jsonify({"status":"failed", "message":"Echec survenue lors de la modification du mot de passe"})
