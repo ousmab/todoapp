@@ -328,6 +328,14 @@ def handling_error(e):
 
 ####################### END POINT ####################
 #######################################################
+@app.route("/todos/search")
+@login_required
+def seach_todo():
+    keyword = request.args['q']
+    todos = Todo.todo_search(keyword, current_user.id )
+    return jsonify({"status":"success", "data": todos})
+    
+    return jsonify(string)
 
 @app.route("/todos", methods=['GET'])
 @login_required
