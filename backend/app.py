@@ -346,6 +346,23 @@ def handling_error(e):
 
 ####################### END POINT ####################
 #######################################################
+
+@app.route("/todos/undo/<todo_id>", methods=['PATCH'])
+def mark_uncomplete(todo_id):
+    result = Todo.update_status_undo(todo_id)
+    if result:
+        return jsonify({"status":"success", "message":"Tâche Annulée"})
+    return jsonify({"status":"failed", "message":"Echec de la modification"})
+
+
+@app.route("/todos/do/<todo_id>", methods=['PATCH'])
+def mark_complete(todo_id):
+    result = Todo.update_status_do(todo_id)
+    if result:
+        return jsonify({"status":"success", "message":"Tâche complete"})
+    return jsonify({"status":"failed", "message":"Echec de la modification"})
+
+
 @app.route("/todos/<todo_id>", methods=['DELETE'])
 def delete_todo(todo_id):
     result = Todo.delete_one(todo_id)
