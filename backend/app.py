@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, make_response, session
+from flask import Flask, request, jsonify, make_response, session, send_from_directory
 from flask_sqlalchemy import SQLAlchemy 
 from validator import validate
 from helpers import hash_password, check_password, generate_token, check_allowed_extensions
@@ -10,7 +10,7 @@ import os
 app = Flask(__name__)
 app.config['SECRET_KEY'] = "192b9bdd22ab9ed4d12e236c78afcb9a393ec15f71bbf5dc987d54727823bcbf"
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///db/todoAppManager.db"
-app.config['UPDLOAD_FOLDER'] = "/static/profil/"
+app.config['UPLOAD_FOLDER'] = "/static/profil/"
 app.config['MAX_CONTENT_LENGTH'] = 1024*1024*3
 
 ALLOWED_EXTENSIONS = ["jpg", "png", "jpeg","bmp","svg"]
@@ -232,7 +232,7 @@ class Todo(db.Model):
                         "created_at" : todo.created_at,
                         "updated_at" : todo.updated_at
                     }
-                    todos_list.append(todo)
+                    todos_list.append(todo_dict)
                 return todos_list
         except Exception as e :
             print(e)
@@ -323,11 +323,46 @@ def not_connected():
 @app.errorhandler(413)
 def handling_error(e):
     errors = {"file_size": "le fichier est trop volumineux"}
-    return jsonify({"status":"faild","message":"Erreur survenue lors de l'upload du fichier", "errors": errors}), 413
+    return jsonify({"status":"error","message":"Erreur survenue lors de l'upload du fichier", "errors": errors}), 413
 
 
 ####################### END POINT ####################
 #######################################################
+
+@app.route("/todos", methods=['GET'])
+@login_required
+def get_all_todos():
+    todos = Todo.get_all(current_user.id)
+    print(todos)
+    return jsonify({"status":"success", "data": todos})
+
+@app.route("/todos", methods=['POST'])
+@login_required
+def add_todo():
+    errors = {}
+    content = request.json['content'].strip()
+    content_check = validate({"content": content}, {"content":"required|min:3"})
+
+    if not content_check:
+        errors['content'] = "Votre tâche doit faire au moins 3 caractères"
+        return jsonify({"status":"failed", "message":"Echec d'ajout", "errors": errors})
+
+    #creer un todo
+    todo = Todo(content=content, user_id=current_user.id)   
+    result = Todo.add(todo)
+    if result:
+        return jsonify({"status":"success", "message":"Enregistrement reussie"})
+    
+    return jsonify({"status":'failed', "message":"Echec d'enregistrement de la tâche"})
+
+@app.route("/profil/img/<filename>")
+def get_user_image(filename):
+    path_from_download = os.getcwd()+app.config['UPLOAD_FOLDER']
+    try:
+        return send_from_directory(path_from_download, filename)
+    except Exception as e:
+        print(e)
+    return jsonify({"stauts":"error", "message": "Le fichier est introuvable"}), 404
 
 @app.route("/profil/upload", methods=['POST'])
 @login_required
@@ -337,8 +372,6 @@ def upload_img_profil():
     user_image = request.files['user_img']
     #securiser le fichier
 
-    
-   
     #verifier l'extention 
     result_extension_check = check_allowed_extensions(user_image.filename, ALLOWED_EXTENSIONS)['result']
     file_extension = check_allowed_extensions(user_image.filename, ALLOWED_EXTENSIONS)['extension']
@@ -353,7 +386,7 @@ def upload_img_profil():
     #sauvegarder en BD et si cela reussi on sauvegarde sur le serveur
     save_result = User.update_profil_image(current_user.id,  image_to_save)
     if save_result:
-        path = os.getcwd()+app.config['UPDLOAD_FOLDER']+image_to_save
+        path = os.getcwd()+app.config['UPLOAD_FOLDER']+image_to_save
         user_image.save(path)
         return jsonify({"status":"success", "message":"Image du profil modifié avec succès"})
     return jsonify({"status":"failed", "message": "Echec de la modification de l'image du profil"})
