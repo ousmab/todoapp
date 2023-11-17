@@ -6,8 +6,10 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, curren
 from werkzeug.utils import secure_filename
 import bcrypt
 import os
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 app.config['SECRET_KEY'] = "192b9bdd22ab9ed4d12e236c78afcb9a393ec15f71bbf5dc987d54727823bcbf"
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///db/todoAppManager.db"
 app.config['UPLOAD_FOLDER'] = "/static/profil/"
@@ -347,23 +349,42 @@ def handling_error(e):
 ####################### END POINT ####################
 #######################################################
 
+@app.route("/todos/unarchived/<todo_id>", methods=['PATCH'])
+@login_required
+def mark_unarchived(todo_id):
+    result = Todo.update_status_unarchived(todo_id)
+    if result:
+        return jsonify({"status":"success", "message": "Tâche Désarchivée avec succès"})
+    return jsonify({"status":"failed", "message": "Echec du désarchivage de la tâche"})
+
+@app.route("/todos/archived/<todo_id>", methods=['PATCH'])
+@login_required
+def mark_archived(todo_id):
+    result = Todo.update_status_archived(todo_id)
+    if result:
+        return jsonify({"status":"success", "message": "Tâche archivée avec succès"})
+    return jsonify({"status":"failed", "message": "Echec de l'archivage de la tâche vérifier si la tâche est terminée"})
+
 @app.route("/todos/undo/<todo_id>", methods=['PATCH'])
+@login_required
 def mark_uncomplete(todo_id):
     result = Todo.update_status_undo(todo_id)
     if result:
-        return jsonify({"status":"success", "message":"Tâche Annulée"})
+        return jsonify({"status":"success", "message":"Tâche Annulée avec succès"})
     return jsonify({"status":"failed", "message":"Echec de la modification"})
 
 
 @app.route("/todos/do/<todo_id>", methods=['PATCH'])
+@login_required
 def mark_complete(todo_id):
     result = Todo.update_status_do(todo_id)
     if result:
-        return jsonify({"status":"success", "message":"Tâche complete"})
+        return jsonify({"status":"success", "message":"Tâche marquée comme terminée avec succès"})
     return jsonify({"status":"failed", "message":"Echec de la modification"})
 
 
 @app.route("/todos/<todo_id>", methods=['DELETE'])
+@login_required
 def delete_todo(todo_id):
     result = Todo.delete_one(todo_id)
     if result:
@@ -372,6 +393,7 @@ def delete_todo(todo_id):
     return jsonify({"stauts":"failed", "message":msg})
 
 @app.route("/todos/<todo_id>", methods=['PATCH'])
+@login_required
 def update_todo(todo_id):
     errors = {}
     content = request.json['content'].strip()
@@ -781,8 +803,6 @@ def register():
             return jsonify({"status":"success", "message": "l'utilisateur {} est inscrit avec succès".format(username)})
     
     return jsonify({"status":"failed", "message":" echec de l'inscription erreur non connu"}), 400
-
- 
 
 
 if __name__ == "__main__":
