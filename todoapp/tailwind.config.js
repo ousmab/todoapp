@@ -5,7 +5,13 @@ module.exports = {
     "./public/**/*.{html, }",
   ],
   theme: {
-    extend: {},
+    extend: {
+      zIndex :{
+        "1000":"999",
+        "1024":"1000"
+      }
+
+    },
   },
   plugins: [],
 }
